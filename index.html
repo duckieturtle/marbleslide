@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>MarbleSlide - Interactive Mathematical Physics Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="theme-doodle">
+    <div id="app" class="app-container">
+      <!-- TOP NAVIGATION BAR -->
+      <header class="top-nav">
+        <div class="nav-left">
+          <div class="logo">
+            <span class="logo-icon">🔮</span>
+            <span class="logo-text">Marble<span class="highlight">Slide</span></span>
+            <span class="version-tag">PRO</span>
+          </div>
+
+          <!-- Mode Selector Tabs -->
+          <div class="mode-tabs">
+            <button id="btn-mode-levels" class="tab-btn active" title="Play puzzle campaign">
+              <span class="tab-icon">🎯</span> <span class="tab-text">Puzzles</span>
+            </button>
+            <button id="btn-mode-sandbox" class="tab-btn" title="Create and customize levels">
+              <span class="tab-icon">🛠️</span> <span class="tab-text">Sandbox</span>
+            </button>
+            <button id="btn-mode-draw" class="tab-btn" title="Freehand draw ramps and tracks">
+              <span class="tab-icon">✏️</span> <span class="tab-text">Draw</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="nav-center">
+          <!-- Level Navigator -->
+          <div id="level-nav-container" class="level-nav">
+            <button id="btn-prev-level" class="nav-arrow" title="Previous Level">◀</button>
+            <select id="level-select" class="level-dropdown"></select>
+            <button id="btn-next-level" class="nav-arrow" title="Next Level">▶</button>
+          </div>
+
+          <!-- Sandbox Quick Tools -->
+          <div id="sandbox-nav-container" class="sandbox-nav hidden">
+            <select id="sandbox-template-select" class="template-dropdown">
+              <option value="empty">Template: Empty</option>
+              <option value="pinball">Template: Pinball</option>
+            </select>
+            <button id="btn-share-level" class="icon-chip-btn" title="Copy shareable link">🔗</button>
+            <button id="btn-export-json" class="icon-chip-btn" title="Export level JSON">💾</button>
+            <button id="btn-import-json" class="icon-chip-btn" title="Import level JSON">📂</button>
+          </div>
+        </div>
+
+        <div class="nav-right">
+          <!-- Star Progress Badge -->
+          <div id="stars-badge" class="stars-badge">
+            <span class="star-icon">⭐</span>
+            <span id="stars-counter" class="stars-count">0 / 3</span>
+          </div>
+
+          <!-- Theme Selector -->
+          <div class="theme-selector-wrap">
+            <select id="theme-select" class="theme-dropdown">
+              <option value="doodle" selected>Doodle Jump</option>
+              <option value="cyber">Midnight Cyber</option>
+              <option value="desmos">Desmos Classic</option>
+              <option value="blueprint">Architect Blueprint</option>
+              <option value="synthwave">Retro Synthwave</option>
+            </select>
+          </div>
+
+          <!-- Sound Mute Toggle -->
+          <button id="btn-sound-toggle" class="icon-btn" title="Toggle Sound">
+            <span id="sound-icon">🔊</span>
+          </button>
+
+          <!-- Help / Math Cheat Sheet -->
+          <button id="btn-help" class="icon-btn desktop-only" title="Math Cheat Sheet & Controls">
+            <span>❓</span>
+          </button>
+
+          <!-- Mobile Menu Toggle Button -->
+          <button id="btn-mobile-menu" class="icon-btn mobile-only" title="Open Menu">
+            <span>☰</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- MAIN WORKSPACE -->
+      <main id="workspace-main" class="workspace-area mobile-split">
+        <!-- LEFT SIDEBAR: EQUATIONS & LEVEL INFO -->
+        <aside id="sidebar" class="sidebar">
+          <!-- LEVEL INFO & HINT (Ultra-compact strip with icon toggles) -->
+          <div class="sidebar-header">
+            <div class="level-meta">
+              <div class="level-meta-top">
+                <div class="level-badge-title">
+                  <span class="level-category-badge" id="level-category">Lines</span>
+                  <h2 id="level-title" class="level-title">The First Slide</h2>
+                </div>
+                <div class="level-icon-actions">
+                  <button id="btn-toggle-desc" class="icon-chip-btn" title="Level Goal & Description">ℹ️</button>
+                  <button id="btn-toggle-hint" class="icon-chip-btn hint-chip" title="Math Formula Hint">💡</button>
+                  <button id="btn-collapse-sidebar" class="icon-chip-btn collapse-btn desktop-only" title="Hide Equations Panel">◀</button>
+                </div>
+              </div>
+              <p id="level-desc" class="level-desc hidden">Adjust the line equation to guide marbles into all stars.</p>
+            </div>
+
+            <!-- Hint Box (Compact, expandable) -->
+            <div id="hint-content" class="hint-content hidden">
+              <p id="hint-text">Use y = mx + b to alter the ramp angle.</p>
+            </div>
+          </div>
+
+          <!-- EQUATIONS SECTION (Sticky header, compact items) -->
+          <div class="equations-section">
+            <div class="equations-header">
+              <div class="eq-header-title">
+                <span class="section-title">Equations</span>
+                <span class="eq-count-badge" id="eq-count-badge">1</span>
+              </div>
+              <div class="eq-header-actions">
+                <button id="btn-add-preset" class="action-btn small" title="Insert common equation preset">⚡ Presets</button>
+              </div>
+            </div>
+
+            <!-- Equations List -->
+            <div id="equations-list" class="equations-list"></div>
+
+            <!-- Obvious, Inviting Add Equation Button -->
+            <button id="btn-add-equation" class="btn-add-equation-full" title="Add a new math formula">
+              <span>➕</span> Add Equation
+            </button>
+
+            <!-- Dynamic Variables & Sliders Panel -->
+            <div id="sliders-panel" class="sliders-panel">
+              <div class="section-title-sub">Interactive Sliders</div>
+              <div id="sliders-list" class="sliders-list"></div>
+            </div>
+          </div>
+
+          <!-- SANDBOX TOOLBAR (Visible in Sandbox Mode) -->
+          <div id="sandbox-tools-panel" class="sandbox-tools hidden">
+            <div class="section-title">Object Placement Tools</div>
+            <div class="tools-grid">
+              <button class="tool-btn active" data-tool="select" title="Select / Move">👆 Move</button>
+              <button class="tool-btn" data-tool="add_star" title="Add Star">⭐ Star</button>
+              <button class="tool-btn" data-tool="add_bumper" title="Add Bumper">🔘 Bumper</button>
+              <button class="tool-btn" data-tool="add_booster" title="Add Booster">⚡ Booster</button>
+              <button class="tool-btn" data-tool="add_portal" title="Add Portal">🌀 Portal</button>
+              <button class="tool-btn" data-tool="add_obstacle" title="Add Barrier">🧱 Barrier</button>
+              <button class="tool-btn" data-tool="add_gravity" title="Add Gravity Well">🕳️ Gravity</button>
+              <button class="tool-btn delete-tool" data-tool="delete" title="Click object to delete">🗑️ Delete</button>
+            </div>
+            <p class="tool-instruction" id="tool-instruction">Click on canvas to select or drag objects.</p>
+          </div>
+
+          <!-- DRAW TOOLBAR (Visible in Freehand Draw Mode) -->
+          <div id="draw-tools-panel" class="draw-tools hidden">
+            <div class="section-title">Freehand Ramp Drawing</div>
+            <div class="draw-controls-row">
+              <label>Color:
+                <input type="color" id="draw-color-picker" value="#38bdf8" />
+              </label>
+              <button id="btn-draw-undo" class="action-btn small">↩ Undo Stroke</button>
+              <button id="btn-draw-clear" class="action-btn small danger">Clear Tracks</button>
+            </div>
+            <p class="draw-tip">Click and drag on the grid to sketch smooth physics ramps!</p>
+          </div>
+        </aside>
+
+        <!-- CANVAS SIMULATION VIEWPORT -->
+        <section class="canvas-viewport" id="viewport-container">
+          <canvas id="game-canvas"></canvas>
+
+          <!-- Floating Viewport Controls -->
+          <div class="viewport-hud-top">
+            <button id="btn-expand-sidebar" class="hud-btn primary hidden" title="Show Equations & Controls">📐 Equations</button>
+            <div id="coords-readout" class="coords-display">x: 0.0, y: 0.0</div>
+            <div class="hud-buttons">
+              <div class="dpad-group">
+                <button id="btn-pan-left" class="hud-btn nav-pad-btn" title="Pan Left">◀</button>
+                <div class="dpad-vertical">
+                  <button id="btn-pan-up" class="hud-btn nav-pad-btn" title="Pan Up">▲</button>
+                  <button id="btn-pan-down" class="hud-btn nav-pad-btn" title="Pan Down">▼</button>
+                </div>
+                <button id="btn-pan-right" class="hud-btn nav-pad-btn" title="Pan Right">▶</button>
+              </div>
+              <button id="btn-fit-view" class="hud-btn primary" title="Fit Camera to Puzzle">🎯</button>
+              <div class="zoom-group">
+                <button id="btn-zoom-out" class="hud-btn zoom-btn" title="Zoom Out">−</button>
+                <span id="zoom-readout" class="zoom-badge" title="Current Zoom">100%</span>
+                <button id="btn-zoom-in" class="hud-btn zoom-btn" title="Zoom In">+</button>
+              </div>
+              <button id="btn-toggle-trails" class="hud-btn active" title="Toggle Trajectory Ghost Trails">👻</button>
+            </div>
+          </div>
+
+          <!-- Floating Bottom Playback Control Bar -->
+          <div class="playback-bar">
+            <button id="btn-launch" class="btn-launch" title="Launch Marbles (Spacebar)">
+              <span class="play-icon">▶</span>
+              <span class="btn-text">LAUNCH</span>
+            </button>
+
+            <button id="btn-reset" class="btn-reset" title="Reset Simulation (R)">
+              <span>🔄</span> <span class="btn-text">Reset</span>
+            </button>
+
+            <div class="speed-selector desktop-only">
+              <button class="speed-btn" data-speed="0.5">0.5×</button>
+              <button class="speed-btn active" data-speed="1.0">1×</button>
+              <button class="speed-btn" data-speed="2.0">2×</button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- VICTORY MODAL -->
+      <div id="victory-modal" class="modal-overlay hidden">
+        <div class="modal-card victory-card">
+          <div class="victory-header">
+            <span class="victory-icon">🏆</span>
+            <h2>PUZZLE SOLVED!</h2>
+            <div class="stars-celebration" id="modal-stars">⭐⭐⭐</div>
+          </div>
+          <p id="victory-msg">Astounding mathematical precision! All stars have been collected.</p>
+          <div class="victory-actions">
+            <button id="btn-replay" class="action-btn secondary">Replay</button>
+            <button id="btn-next-level-modal" class="action-btn primary large">Next Level ▶</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MATH CHEAT SHEET & HELP MODAL -->
+      <div id="help-modal" class="modal-overlay hidden">
+        <div class="modal-card help-card">
+          <div class="modal-header">
+            <h2>📐 Mathematical Reference & Guide</h2>
+            <button id="btn-close-help" class="close-btn">×</button>
+          </div>
+          <div class="modal-body help-body">
+            <h3>How to Write Equations</h3>
+            <div class="cheat-item">
+              <code>y = 2x + 1</code>
+              <span>Linear slope-intercept form</span>
+            </div>
+            <div class="cheat-item">
+              <code>x^2 + y^2 = 10</code>
+              <span>Circular loop with radius &radic;10</span>
+            </div>
+            <div class="cheat-item">
+              <code>x^2 + y^2 = 16 { y &lt; 0 }</code>
+              <span>Semicircular bowl (halfpipe)</span>
+            </div>
+            <div class="cheat-item">
+              <code>y = -0.5(x - 2)^2 + 4</code>
+              <span>Parabola with vertex at (2, 4)</span>
+            </div>
+            <div class="cheat-item">
+              <code>y = 2 * sin(x)</code>
+              <span>Trigonometric wave</span>
+            </div>
+            <div class="cheat-item">
+              <code>x = 3</code>
+              <span>Vertical wall / barrier</span>
+            </div>
+            <div class="cheat-item">
+              <code>y = 4 / (x + 2)</code>
+              <span>Rational hyperbolic curve</span>
+            </div>
+            <div class="cheat-item">
+              <code>y = abs(x) - 3</code>
+              <span>Absolute value V-ramp</span>
+            </div>
+
+            <h3>Domain Restrictions</h3>
+            <p>Truncate slides so marbles can fall or drop into target zones:</p>
+            <div class="cheat-item">
+              <code>y = -0.5x + 3 { x &lt; 2 }</code>
+              <span>Line ends at x = 2</span>
+            </div>
+            <div class="cheat-item">
+              <code>y = x^2 - 4 { -3 &lt; x &lt; 3 }</code>
+              <span>Curve only drawn between -3 and 3</span>
+            </div>
+
+            <h3>Sliders & Parameters</h3>
+            <p>Use variables like <code>a</code>, <code>b</code>, <code>m</code> in your equations (e.g., <code>y = m*x + b</code>). Sliders will automatically appear for instant dynamic tuning!</p>
+
+            <h3>Hotkeys</h3>
+            <ul>
+              <li><strong>Spacebar</strong>: Launch Marbles / Pause</li>
+              <li><strong>R</strong>: Reset Simulation</li>
+              <li><strong>T</strong>: Toggle Ghost Trails</li>
+              <li><strong>Mouse Wheel / Pinch</strong>: Zoom in and out</li>
+              <li><strong>Right-Click Drag or Middle Click</strong>: Pan around the plane</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- PRESET PICKER MODAL -->
+      <div id="preset-modal" class="modal-overlay hidden">
+        <div class="modal-card preset-card">
+          <div class="modal-header">
+            <h2>Select Equation Preset</h2>
+            <button id="btn-close-preset" class="close-btn">×</button>
+          </div>
+          <div class="presets-grid" id="presets-container"></div>
+        </div>
+      </div>
+
+      <!-- MOBILE MENU MODAL -->
+      <div id="mobile-menu-modal" class="modal-overlay hidden">
+        <div class="modal-card mobile-menu-card">
+          <div class="modal-header">
+            <h3>Menu &amp; Settings</h3>
+            <button id="btn-close-mobile-menu" class="close-btn">×</button>
+          </div>
+          <div class="mobile-menu-body">
+            <div class="menu-group">
+              <label class="menu-label">Game Mode</label>
+              <div class="mobile-mode-grid">
+                <button id="m-btn-mode-levels" class="tab-btn active">🎯 Puzzle Campaign</button>
+                <button id="m-btn-mode-sandbox" class="tab-btn">🛠️ Sandbox</button>
+                <button id="m-btn-mode-draw" class="tab-btn">✏️ Freehand Draw</button>
+              </div>
+            </div>
+            <div class="menu-group">
+              <label class="menu-label">Visual Theme</label>
+              <select id="m-theme-select" class="theme-dropdown menu-select">
+                <option value="doodle" selected>Doodle Jump</option>
+                <option value="cyber">Midnight Cyber</option>
+                <option value="desmos">Desmos Classic</option>
+                <option value="blueprint">Architect Blueprint</option>
+                <option value="synthwave">Retro Synthwave</option>
+              </select>
+            </div>
+            <div class="menu-group">
+              <button id="m-btn-help" class="action-btn menu-action-btn">❓ Math Guide &amp; Reference</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
