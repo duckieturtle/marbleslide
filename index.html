@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="./assets/index-DoDkZ1fY.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-CFrT0eLx.css">
+    <script type="module" crossorigin src="./assets/index-D3FZBQG7.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DGvyeSjQ.css">
   </head>
   <body class="theme-doodle">
     <div id="app" class="app-container">
@@ -103,6 +103,8 @@
                   <h2 id="level-title" class="level-title">The First Slide</h2>
                 </div>
                 <div class="level-icon-actions">
+                  <span id="save-indicator" class="save-indicator" title="All changes saved to local storage">💾 Saved</span>
+                  <button id="btn-revert-level" class="icon-chip-btn" title="Revert to Default Level Design">↺</button>
                   <button id="btn-toggle-desc" class="icon-chip-btn" title="Level Goal & Description">ℹ️</button>
                   <button id="btn-toggle-hint" class="icon-chip-btn hint-chip" title="Math Formula Hint">💡</button>
                   <button id="btn-collapse-sidebar" class="icon-chip-btn collapse-btn desktop-only" title="Hide Equations Panel">◀</button>
@@ -343,6 +345,7 @@
               </select>
             </div>
             <div class="menu-group">
+              <button id="m-btn-revert" class="action-btn menu-action-btn" style="margin-bottom:8px; background:var(--bg-card); border-color:var(--border-subtle); color:var(--text-primary);">↺ Revert Level to Default</button>
               <button id="m-btn-help" class="action-btn menu-action-btn">❓ Math Guide &amp; Reference</button>
             </div>
           </div>
