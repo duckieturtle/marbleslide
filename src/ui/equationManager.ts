@@ -108,6 +108,18 @@ export class EquationManager {
     this.addEquation(orig.raw, color);
   }
 
+  public getEquationsData(): EquationItem[] {
+    return this.items.map(i => ({ id: i.id, raw: i.raw, color: i.color }));
+  }
+
+  public getSlidersData(): Record<string, { value: number; min: number; max: number; step: number }> {
+    const res: Record<string, { value: number; min: number; max: number; step: number }> = {};
+    for (const [k, v] of this.sliders.entries()) {
+      res[k] = { value: v.value, min: v.min, max: v.max, step: v.step };
+    }
+    return res;
+  }
+
   public updateEquationRaw(id: string, newRaw: string): void {
     const item = this.items.find(i => i.id === id);
     if (!item) return;
@@ -343,6 +355,9 @@ export class EquationManager {
       input.addEventListener('input', () => {
         this.updateEquationRaw(item.id, input.value);
       });
+      input.addEventListener('blur', () => {
+        this.onEquationsChanged();
+      });
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
@@ -375,7 +390,9 @@ export class EquationManager {
         { label: '√x', insert: 'sqrt()', title: 'Square Root' },
         { label: '|x|', insert: 'abs()', title: 'Absolute Value' },
         { label: 'sin', insert: 'sin()', title: 'Sine Wave' },
-        { label: 'π', insert: 'pi', title: 'Pi Constant' },
+        { label: 'π', insert: 'pi', title: 'Pi Constant (3.14159...)' },
+        { label: 'e', insert: 'e', title: 'Euler Constant (2.71828...)' },
+        { label: 'ln', insert: 'ln()', title: 'Natural Logarithm (ln)' },
       ];
 
       chips.forEach(c => {

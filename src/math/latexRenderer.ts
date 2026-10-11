@@ -31,9 +31,9 @@ function tokenize(input: string): Token[] {
       continue;
     }
 
-    if (/[a-zA-Z_]/.test(ch)) {
+    if (/[a-zA-Z_π]/.test(ch)) {
       let id = '';
-      while (i < s.length && /[a-zA-Z0-9_]/.test(s[i])) {
+      while (i < s.length && /[a-zA-Z0-9_π]/.test(s[i])) {
         id += s[i];
         i++;
       }
@@ -220,7 +220,8 @@ function astToLatex(node: ASTNode): string {
       return node.val;
 
     case 'var':
-      if (node.name.toLowerCase() === 'pi') return '\\pi';
+      if (node.name.toLowerCase() === 'pi' || node.name === 'π') return '\\pi';
+      if (node.name.toLowerCase() === 'e') return 'e';
       return node.name;
 
     case 'paren':
@@ -234,6 +235,9 @@ function astToLatex(node: ASTNode): string {
       if (name === 'sqrt') return `\\sqrt{${astToLatex(node.arg)}}`;
       if (name === 'cbrt') return `\\sqrt[3]{${astToLatex(node.arg)}}`;
       if (name === 'abs') return `\\left|${astToLatex(node.arg)}\\right|`;
+      if (name === 'log10') return `\\log_{10}\\left(${astToLatex(node.arg)}\\right)`;
+      if (name === 'log2') return `\\log_{2}\\left(${astToLatex(node.arg)}\\right)`;
+      if (name === 'exp') return `e^{${astToLatex(node.arg)}}`;
       const trig = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'ln', 'log'];
       if (trig.includes(name)) {
         return `\\${name}\\left(${astToLatex(node.arg)}\\right)`;

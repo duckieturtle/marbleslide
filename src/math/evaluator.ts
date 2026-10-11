@@ -196,17 +196,28 @@ export function preprocessExpression(expr: string, coordVars: string[] = ['x']):
   let s = expr.trim();
   if (!s) return { jsExpr: '0', freeVars: [] };
 
+  // Normalize LaTeX \pi and Unicode π
+  s = s.replace(/\\pi\b/g, 'pi');
+  s = s.replace(/π/g, 'pi');
+
   // Convert ^ to **
   s = s.replace(/\^/g, '**');
 
   // Convert |expr| to abs(expr)
   s = s.replace(/\|([^|]+)\|/g, 'abs($1)');
 
-  // Implicit multiplication: number followed by letter or parenthesis: 2x -> 2*x
-  s = s.replace(/(\d+(?:\.\d+)?)\s*([a-zA-Z(])/g, '$1*$2');
+  // Implicit multiplication: number followed by letter, parenthesis, or pi:
+  // Use negative lookbehind so functions like log10( or log2( are not broken into log10*(
+  s = s.replace(/(?<![a-zA-Z0-9_])(\d+(?:\.\d+)?)\s*([a-zA-Z_(])/g, '$1*$2');
 
   // Closing parenthesis followed by letter, number, or parenthesis: )x -> )*x
-  s = s.replace(/\)\s*([a-zA-Z0-9(])/g, ')*$1');
+  s = s.replace(/\)\s*([a-zA-Z0-9_(])/g, ')*$1');
+
+  // Constant multiplications: pi x -> pi*x, pi( -> pi*(, e x -> e*x, e( -> e*(, x pi -> x*pi, etc.
+  s = s.replace(/\b(pi|e)\s+([a-zA-Z0-9_(])/gi, '$1*$2');
+  s = s.replace(/\b(pi|e)\s*\(/gi, '$1*(');
+  s = s.replace(/\b([xy])\s*(pi|e)\b/gi, '$1*$2');
+  s = s.replace(/\b(pi|e)\s*([xy])\b/gi, '$1*$2');
 
   // Variable multiplications: xy -> x*y, yx -> y*x, x( -> x*(, y( -> y*(
   s = s.replace(/\bxy\b/g, 'x*y');
@@ -216,36 +227,51 @@ export function preprocessExpression(expr: string, coordVars: string[] = ['x']):
   s = s.replace(/\bx\s*\(/g, 'x*(');
   s = s.replace(/\by\s*\(/g, 'y*(');
 
-  // Tokenize to identify words (functions, constants, free variables)
-  const wordRegex = /[a-zA-Z_][a-zA-Z0-9_]*/g;
-  const words = Array.from(new Set(s.match(wordRegex) || []));
+  const MATH_MAPPING: Record<string, string> = {
+    pi: 'Math.PI',
+    PI: 'Math.PI',
+    e: 'Math.E',
+    E: 'Math.E',
+    sin: 'Math.sin',
+    cos: 'Math.cos',
+    tan: 'Math.tan',
+    asin: 'Math.asin',
+    acos: 'Math.acos',
+    atan: 'Math.atan',
+    sinh: 'Math.sinh',
+    cosh: 'Math.cosh',
+    tanh: 'Math.tanh',
+    sqrt: 'Math.sqrt',
+    cbrt: 'Math.cbrt',
+    abs: 'Math.abs',
+    exp: 'Math.exp',
+    ln: 'Math.log',
+    log: 'Math.log10',
+    log10: 'Math.log10',
+    log2: 'Math.log2',
+    floor: 'Math.floor',
+    ceil: 'Math.ceil',
+    round: 'Math.round',
+    sign: 'Math.sign',
+    min: 'Math.min',
+    max: 'Math.max',
+  };
 
-  const knownNames = new Set([
-    ...Object.keys(MATH_FUNCTIONS),
-    ...Object.keys(MATH_CONSTANTS),
-    ...coordVars,
-  ]);
+  const freeVars = new Set<string>();
 
-  const freeVars: string[] = [];
-  for (const word of words) {
-    if (!knownNames.has(word)) {
-      freeVars.push(word);
+  // Single-pass replacement: guarantees no token is ever double-replaced into Math.Math.*
+  s = s.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (token) => {
+    if (MATH_MAPPING[token]) {
+      return MATH_MAPPING[token];
     }
-  }
+    if (coordVars.includes(token)) {
+      return token;
+    }
+    freeVars.add(token);
+    return token;
+  });
 
-  // Replace known functions with Math.<func> and constants
-  for (const func of Object.keys(MATH_FUNCTIONS)) {
-    const reg = new RegExp(`\\b${func}\\b`, 'g');
-    const replacement = func === 'ln' ? 'Math.log' : `Math.${func}`;
-    s = s.replace(reg, replacement);
-  }
-
-  for (const c of Object.keys(MATH_CONSTANTS)) {
-    const reg = new RegExp(`\\b${c}\\b`, 'g');
-    s = s.replace(reg, `Math.${c.toUpperCase()}`);
-  }
-
-  return { jsExpr: s, freeVars };
+  return { jsExpr: s, freeVars: Array.from(freeVars) };
 }
 
 /**

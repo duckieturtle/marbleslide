@@ -74,6 +74,14 @@ export class TrackDrawer {
     this.isDrawing = false;
   }
 
+  public getTracks(): Segment[][] {
+    return JSON.parse(JSON.stringify(this.completedTracks));
+  }
+
+  public setTracks(tracks: Segment[][]): void {
+    this.completedTracks = tracks ? JSON.parse(JSON.stringify(tracks)) : [];
+  }
+
   public getAllSegments(): Segment[] {
     const all: Segment[] = [];
     for (const track of this.completedTracks) {

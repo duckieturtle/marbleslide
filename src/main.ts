@@ -13,6 +13,7 @@ import { TrackDrawer } from './editor/trackDrawer';
 import { SandboxManager, SandboxTool } from './editor/sandbox';
 import { PRESETS } from './ui/presets';
 import { renderMathHtml } from './math/latexRenderer';
+import { StorageManager, AppStateSnapshot, LevelDesignSnapshot } from './storage/storageManager';
 
 type GameMode = 'levels' | 'sandbox' | 'draw';
 
@@ -28,6 +29,10 @@ class MarbleSlideApp {
   private currentLevelIndex: number = 0;
   private currentLevel: LevelDefinition;
   private simSpeed: number = 1.0;
+
+  // Persistence State
+  private savedDesigns: Record<string, LevelDesignSnapshot> = {};
+  private saveIndicatorTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Pointer & Pan State
   private isPanning: boolean = false;
@@ -78,19 +83,35 @@ class MarbleSlideApp {
     this.eqManager.onEquationsChanged = () => {
       this.syncPhysicsGeometry();
       this.updateEquationCountUI();
+      this.saveSnapshot();
     };
 
     // Initialize Track Drawer & Sandbox
     this.trackDrawer = new TrackDrawer();
     this.sandbox = new SandboxManager();
 
+    // Load persisted snapshot from LocalStorage
+    const savedSnapshot = StorageManager.loadSnapshot();
+    if (savedSnapshot) {
+      this.savedDesigns = savedSnapshot.designs || {};
+      if (savedSnapshot.currentMode === 'sandbox') {
+        this.currentMode = 'sandbox';
+      } else {
+        this.currentMode = 'levels';
+      }
+      this.currentLevelIndex = Math.max(0, Math.min(LEVELS.length - 1, savedSnapshot.currentLevelIndex || 0));
+    }
+
     // Check URL hash for shared level
     const sharedLevel = this.sandbox.importFromShareHash();
     if (sharedLevel) {
       this.currentLevel = sharedLevel;
       this.currentMode = 'sandbox';
+    } else if (this.currentMode === 'sandbox' && savedSnapshot?.sandboxLevel) {
+      this.currentLevel = savedSnapshot.sandboxLevel;
     } else {
-      this.currentLevel = LEVELS[0];
+      const lvl = LEVELS[this.currentLevelIndex] || LEVELS[0];
+      this.currentLevel = JSON.parse(JSON.stringify(lvl));
     }
 
     this.setupEventListeners();
@@ -99,6 +120,12 @@ class MarbleSlideApp {
     this.setupPresetsModal();
     this.setupMobileUI();
     this.renderHelpCheatSheetMath();
+
+    // Page unload & tab visibility change auto-save handlers
+    window.addEventListener('beforeunload', () => this.saveSnapshot(true));
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') this.saveSnapshot(true);
+    });
 
     // ResizeObserver guarantees zero-skew pixel accuracy on all screens and orientation changes
     if (typeof ResizeObserver !== 'undefined') {
@@ -110,13 +137,21 @@ class MarbleSlideApp {
       ro.observe(this.canvas);
     }
 
-    // Load Initial Level
+    // Load Initial Level with restored design
     if (this.currentMode === 'sandbox') {
       this.switchMode('sandbox');
-      this.loadLevel(this.currentLevel);
+      this.loadLevel(this.currentLevel, true);
+    } else if (this.currentMode === 'draw') {
+      this.switchMode('draw');
+      this.loadLevel(this.currentLevel, true);
     } else {
-      this.loadLevelIndex(0);
+      this.loadLevel(this.currentLevel, true);
     }
+
+    // Periodic autosave safeguard (every 4 seconds)
+    setInterval(() => {
+      this.saveSnapshot();
+    }, 4000);
 
     // Start Animation Loop
     window.addEventListener('resize', () => this.handleResize());
@@ -153,35 +188,67 @@ class MarbleSlideApp {
     requestAnimationFrame(t => this.loop(t));
   }
 
-  private loadLevelIndex(index: number): void {
+  private loadLevelIndex(index: number, applySaved = true): void {
+    if (this.currentLevel) {
+      this.saveSnapshot(true);
+    }
     this.currentLevelIndex = Math.max(0, Math.min(LEVELS.length - 1, index));
     const lvl = LEVELS[this.currentLevelIndex];
     // Deep clone level template so changes don't mutate definition
     this.currentLevel = JSON.parse(JSON.stringify(lvl));
-    this.loadLevel(this.currentLevel);
+    this.loadLevel(this.currentLevel, applySaved);
+    this.saveSnapshot();
   }
 
-  private loadLevel(level: LevelDefinition): void {
+  private loadLevel(level: LevelDefinition, applySaved = true): void {
     // Stop and reset simulation
     this.physics.stopSimulation();
 
-    // Populate Physics State from level
-    this.physics.launcher = { ...level.launcher };
-    this.physics.stars = level.stars.map(s => ({ ...s, collected: false }));
-    this.physics.obstacles = level.obstacles ? level.obstacles.map(o => ({ ...o })) : [];
-    this.physics.bumpers = level.bumpers ? level.bumpers.map(b => ({ ...b, flashTimer: 0 })) : [];
-    this.physics.boosters = level.boosters ? level.boosters.map(b => ({ ...b })) : [];
-    this.physics.portals = level.portals ? level.portals.map(p => ({ ...p })) : [];
-    this.physics.gravityWells = level.gravityWells ? level.gravityWells.map(g => ({ ...g })) : [];
+    // Check if we have a saved design for this level
+    const saved = applySaved ? this.savedDesigns[level.id] : null;
 
-    // Populate Equations
-    this.eqManager.setEquations(level.initialEquations, level.initialSliders);
+    if (saved) {
+      // 1. Populate Physics State from saved design or level definition
+      this.physics.launcher = saved.launcher ? { ...saved.launcher } : { ...level.launcher };
+      this.physics.stars = (saved.stars || level.stars).map(s => ({ ...s, collected: false }));
+      this.physics.obstacles = saved.obstacles ? saved.obstacles.map(o => ({ ...o })) : (level.obstacles ? level.obstacles.map(o => ({ ...o })) : []);
+      this.physics.bumpers = (saved.bumpers || (level.bumpers ? level.bumpers.map(b => ({ ...b })) : [])).map(b => ({ ...b, flashTimer: 0 }));
+      this.physics.boosters = saved.boosters ? saved.boosters.map(b => ({ ...b })) : (level.boosters ? level.boosters.map(b => ({ ...b })) : []);
+      this.physics.portals = saved.portals ? saved.portals.map(p => ({ ...p })) : (level.portals ? level.portals.map(p => ({ ...p })) : []);
+      this.physics.gravityWells = saved.gravityWells ? saved.gravityWells.map(g => ({ ...g })) : (level.gravityWells ? level.gravityWells.map(g => ({ ...g })) : []);
 
-    // Clear hand-drawn tracks
-    this.trackDrawer.clear();
+      // 2. Populate Equations & Sliders
+      this.eqManager.setEquations(saved.equations || level.initialEquations, saved.sliders || level.initialSliders);
 
-    // Auto-fit camera with wide, comfortable bird's eye view
-    this.fitLevelCamera();
+      // 3. Restore Drawn Tracks
+      if (saved.drawnTracks && saved.drawnTracks.length > 0) {
+        this.trackDrawer.setTracks(saved.drawnTracks);
+      } else {
+        this.trackDrawer.clear();
+      }
+
+      // 4. Restore Camera
+      if (saved.camera) {
+        this.renderer.camera.centerX = saved.camera.centerX;
+        this.renderer.camera.centerY = saved.camera.centerY;
+        this.renderer.camera.scale = saved.camera.scale;
+      } else {
+        this.fitLevelCamera();
+      }
+    } else {
+      // Default level template
+      this.physics.launcher = { ...level.launcher };
+      this.physics.stars = level.stars.map(s => ({ ...s, collected: false }));
+      this.physics.obstacles = level.obstacles ? level.obstacles.map(o => ({ ...o })) : [];
+      this.physics.bumpers = level.bumpers ? level.bumpers.map(b => ({ ...b, flashTimer: 0 })) : [];
+      this.physics.boosters = level.boosters ? level.boosters.map(b => ({ ...b })) : [];
+      this.physics.portals = level.portals ? level.portals.map(p => ({ ...p })) : [];
+      this.physics.gravityWells = level.gravityWells ? level.gravityWells.map(g => ({ ...g })) : [];
+
+      this.eqManager.setEquations(level.initialEquations, level.initialSliders);
+      this.trackDrawer.clear();
+      this.fitLevelCamera();
+    }
 
     // Reset physics marbles
     this.physics.resetSimulation(true);
@@ -201,6 +268,94 @@ class MarbleSlideApp {
     this.updateSimulationStateUI(false);
   }
 
+  public saveSnapshot(immediate = false): void {
+    if (!this.currentLevel) return;
+
+    const currentDesign: LevelDesignSnapshot = {
+      equations: this.eqManager.getEquationsData(),
+      sliders: this.eqManager.getSlidersData(),
+      drawnTracks: this.trackDrawer.getTracks(),
+      camera: {
+        centerX: this.renderer.camera.centerX,
+        centerY: this.renderer.camera.centerY,
+        scale: this.renderer.camera.scale,
+      },
+      launcher: { ...this.physics.launcher },
+      stars: this.physics.stars.map(s => ({ ...s, collected: false })),
+      obstacles: this.physics.obstacles.map(o => ({ ...o })),
+      bumpers: this.physics.bumpers.map(b => ({ ...b })),
+      boosters: this.physics.boosters.map(b => ({ ...b })),
+      portals: this.physics.portals.map(p => ({ ...p })),
+      gravityWells: this.physics.gravityWells.map(g => ({ ...g })),
+      savedAt: Date.now(),
+    };
+
+    this.savedDesigns[this.currentLevel.id] = currentDesign;
+
+    const snapshot: AppStateSnapshot = {
+      version: 1,
+      currentMode: this.currentMode,
+      currentLevelIndex: this.currentLevelIndex,
+      currentLevelId: this.currentLevel.id,
+      theme: this.renderer.theme.id,
+      designs: this.savedDesigns,
+      sandboxLevel: this.currentMode === 'sandbox' ? this.currentLevel : undefined,
+      updatedAt: Date.now(),
+    };
+
+    if (immediate) {
+      StorageManager.saveSnapshotImmediate(snapshot);
+    } else {
+      StorageManager.saveSnapshotDebounced(snapshot, 250);
+    }
+
+    this.showSaveIndicator();
+  }
+
+  private showSaveIndicator(): void {
+    const el = document.getElementById('save-indicator');
+    if (!el) return;
+    el.textContent = '💾 Saved';
+    el.classList.remove('saving');
+    el.style.opacity = '1';
+
+    if (this.saveIndicatorTimeout) clearTimeout(this.saveIndicatorTimeout);
+    this.saveIndicatorTimeout = setTimeout(() => {
+      if (el) el.style.opacity = '0.65';
+    }, 1500);
+  }
+
+  private revertCurrentLevel(): void {
+    const isSandbox = this.currentMode === 'sandbox';
+    const msg = isSandbox
+      ? 'Reset this sandbox canvas to an empty slate?'
+      : `Revert "${this.currentLevel.title}" back to its original default equation and design?`;
+
+    if (!confirm(msg)) return;
+
+    StorageManager.clearLevelDesign(this.currentLevel.id);
+    delete this.savedDesigns[this.currentLevel.id];
+
+    if (isSandbox) {
+      const templates = this.sandbox.getTemplates();
+      this.currentLevel = JSON.parse(JSON.stringify(templates.empty));
+      this.loadLevel(this.currentLevel, false);
+    } else {
+      const lvl = LEVELS[this.currentLevelIndex];
+      this.currentLevel = JSON.parse(JSON.stringify(lvl));
+      this.loadLevel(this.currentLevel, false);
+    }
+
+    this.saveSnapshot(true);
+
+    const el = document.getElementById('save-indicator');
+    if (el) {
+      el.textContent = '↺ Reverted';
+      el.classList.add('saving');
+      setTimeout(() => this.showSaveIndicator(), 1500);
+    }
+  }
+
   private syncPhysicsGeometry(): void {
     // Generate equation curve segments
     const bounds = this.renderer.camera.getViewportWorldBounds();
@@ -213,6 +368,17 @@ class MarbleSlideApp {
     const drawnSegments = this.trackDrawer.getAllSegments();
 
     this.physics.segments = [...eqSegments, ...drawnSegments];
+  }
+
+  private syncSandboxToPhysics(): void {
+    this.physics.stars = this.currentLevel.stars.map(s => ({ ...s, collected: false }));
+    this.physics.bumpers = (this.currentLevel.bumpers || []).map(b => ({ ...b, flashTimer: 0 }));
+    this.physics.boosters = (this.currentLevel.boosters || []).map(b => ({ ...b }));
+    this.physics.obstacles = (this.currentLevel.obstacles || []).map(o => ({ ...o }));
+    this.physics.portals = (this.currentLevel.portals || []).map(p => ({ ...p }));
+    this.physics.gravityWells = (this.currentLevel.gravityWells || []).map(g => ({ ...g }));
+    this.updateStarCounterUI();
+    this.saveSnapshot();
   }
 
   private updateStarCounterUI(): void {
@@ -279,6 +445,7 @@ class MarbleSlideApp {
 
   private switchMode(mode: GameMode): void {
     this.currentMode = mode;
+    this.saveSnapshot(true);
 
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     const btn = document.getElementById(`btn-mode-${mode}`);
@@ -342,9 +509,11 @@ class MarbleSlideApp {
     document.getElementById('btn-mode-levels')?.addEventListener('click', () => this.switchMode('levels'));
     document.getElementById('btn-mode-sandbox')?.addEventListener('click', () => {
       this.switchMode('sandbox');
-      const templates = this.sandbox.getTemplates();
-      this.currentLevel = JSON.parse(JSON.stringify(templates.empty));
-      this.loadLevel(this.currentLevel);
+      if (!this.currentLevel || !this.currentLevel.id.startsWith('sandbox-')) {
+        const templates = this.sandbox.getTemplates();
+        this.currentLevel = JSON.parse(JSON.stringify(templates.empty));
+        this.loadLevel(this.currentLevel, true);
+      }
     });
     document.getElementById('btn-mode-draw')?.addEventListener('click', () => this.switchMode('draw'));
   }
@@ -472,9 +641,11 @@ class MarbleSlideApp {
 
     document.getElementById('m-btn-mode-sandbox')?.addEventListener('click', () => {
       this.switchMode('sandbox');
-      const templates = this.sandbox.getTemplates();
-      this.currentLevel = JSON.parse(JSON.stringify(templates.empty));
-      this.loadLevel(this.currentLevel);
+      if (!this.currentLevel || !this.currentLevel.id.startsWith('sandbox-')) {
+        const templates = this.sandbox.getTemplates();
+        this.currentLevel = JSON.parse(JSON.stringify(templates.empty));
+        this.loadLevel(this.currentLevel, true);
+      }
       mobileMenuModal?.classList.add('hidden');
     });
 
@@ -562,6 +733,7 @@ class MarbleSlideApp {
     // Fit View
     document.getElementById('btn-fit-view')?.addEventListener('click', () => {
       this.fitLevelCamera();
+      this.saveSnapshot();
     });
 
     // Zoom In / Out Buttons
@@ -569,30 +741,45 @@ class MarbleSlideApp {
       this.renderer.camera.zoomAt(this.canvas.clientWidth / 2, this.canvas.clientHeight / 2, 1.25);
       this.updateZoomUI();
       this.syncPhysicsGeometry();
+      this.saveSnapshot();
     });
 
     document.getElementById('btn-zoom-out')?.addEventListener('click', () => {
       this.renderer.camera.zoomAt(this.canvas.clientWidth / 2, this.canvas.clientHeight / 2, 0.8);
       this.updateZoomUI();
       this.syncPhysicsGeometry();
+      this.saveSnapshot();
     });
 
     // D-Pad Pan Buttons
     document.getElementById('btn-pan-left')?.addEventListener('click', () => {
       this.renderer.camera.panWorld(-3.5, 0);
       this.syncPhysicsGeometry();
+      this.saveSnapshot();
     });
     document.getElementById('btn-pan-right')?.addEventListener('click', () => {
       this.renderer.camera.panWorld(3.5, 0);
       this.syncPhysicsGeometry();
+      this.saveSnapshot();
     });
     document.getElementById('btn-pan-up')?.addEventListener('click', () => {
       this.renderer.camera.panWorld(0, 3.5);
       this.syncPhysicsGeometry();
+      this.saveSnapshot();
     });
     document.getElementById('btn-pan-down')?.addEventListener('click', () => {
       this.renderer.camera.panWorld(0, -3.5);
       this.syncPhysicsGeometry();
+      this.saveSnapshot();
+    });
+
+    // Revert to Default Level Design
+    document.getElementById('btn-revert-level')?.addEventListener('click', () => {
+      this.revertCurrentLevel();
+    });
+    document.getElementById('m-btn-revert')?.addEventListener('click', () => {
+      document.getElementById('mobile-menu-modal')?.classList.add('hidden');
+      this.revertCurrentLevel();
     });
 
     const trailsBtn = document.getElementById('btn-toggle-trails');
@@ -637,11 +824,13 @@ class MarbleSlideApp {
     document.getElementById('btn-draw-undo')?.addEventListener('click', () => {
       this.trackDrawer.undo();
       this.syncPhysicsGeometry();
+      this.saveSnapshot();
     });
 
     document.getElementById('btn-draw-clear')?.addEventListener('click', () => {
       this.trackDrawer.clear();
       this.syncPhysicsGeometry();
+      this.saveSnapshot();
     });
 
     // Sandbox Tool Selector
@@ -670,7 +859,8 @@ class MarbleSlideApp {
       const chosen = templates[tplSelect.value];
       if (chosen) {
         this.currentLevel = JSON.parse(JSON.stringify(chosen));
-        this.loadLevel(this.currentLevel);
+        this.loadLevel(this.currentLevel, false);
+        this.saveSnapshot(true);
       }
     });
 
@@ -777,7 +967,7 @@ class MarbleSlideApp {
           // Placement tool click
           const handled = this.sandbox.handleCanvasClick(sx, sy, this.renderer.camera, this.currentLevel);
           if (handled) {
-            this.loadLevel(this.currentLevel);
+            this.syncSandboxToPhysics();
           }
         }
       } else {
@@ -829,6 +1019,10 @@ class MarbleSlideApp {
     });
 
     window.addEventListener('mouseup', () => {
+      const wasDrawing = this.isDrawing;
+      const wasDragging = this.isDraggingObject;
+      const wasPanning = this.isPanning;
+
       if (this.isDrawing && this.currentMode === 'draw') {
         this.trackDrawer.endStroke();
         this.syncPhysicsGeometry();
@@ -838,6 +1032,10 @@ class MarbleSlideApp {
       this.isDraggingObject = false;
       this.sandbox.draggedObject = null;
       this.canvas.classList.remove('grabbing');
+
+      if (wasDrawing || wasDragging || wasPanning) {
+        this.saveSnapshot();
+      }
     });
 
     // --- TOUCH INTERACTIONS (MOBILE / TRACKPAD TOUCH) ---
@@ -904,10 +1102,16 @@ class MarbleSlideApp {
     }, { passive: false });
 
     this.canvas.addEventListener('touchend', () => {
+      const wasDrawing = this.isDrawing;
+      const wasPanning = this.isPanning;
       this.isPanning = false;
       this.isDrawing = false;
       this.touchStartDist = 0;
       this.canvas.classList.remove('grabbing');
+
+      if (wasDrawing || wasPanning) {
+        this.saveSnapshot();
+      }
     });
 
     // Zoom on Wheel
@@ -920,6 +1124,7 @@ class MarbleSlideApp {
       this.renderer.camera.zoomAt(sx, sy, factor);
       this.updateZoomUI();
       this.syncPhysicsGeometry();
+      this.saveSnapshot();
     }, { passive: false });
 
     // Keyboard Shortcuts
