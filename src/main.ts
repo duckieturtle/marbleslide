@@ -14,6 +14,7 @@ import { SandboxManager, SandboxTool } from './editor/sandbox';
 import { PRESETS } from './ui/presets';
 import { renderMathHtml } from './math/latexRenderer';
 import { StorageManager, AppStateSnapshot, LevelDesignSnapshot } from './storage/storageManager';
+import { MathKeyboard } from './ui/mathKeyboard';
 
 type GameMode = 'levels' | 'sandbox' | 'draw';
 
@@ -24,6 +25,7 @@ class MarbleSlideApp {
   private eqManager: EquationManager;
   private trackDrawer: TrackDrawer;
   private sandbox: SandboxManager;
+  private mathKeyboard: MathKeyboard;
 
   private currentMode: GameMode = 'levels';
   private currentLevelIndex: number = 0;
@@ -76,10 +78,12 @@ class MarbleSlideApp {
       onAllStarsCollected: () => this.handleLevelVictory(),
     });
 
-    // Initialize Equation Manager
+    // Initialize Equation Manager & Math Keyboard
+    this.mathKeyboard = new MathKeyboard();
     const eqListEl = document.getElementById('equations-list')!;
     const slidersListEl = document.getElementById('sliders-list')!;
     this.eqManager = new EquationManager(eqListEl, slidersListEl);
+    this.eqManager.setMathKeyboard(this.mathKeyboard);
     this.eqManager.onEquationsChanged = () => {
       this.syncPhysicsGeometry();
       this.updateEquationCountUI();
@@ -699,6 +703,7 @@ class MarbleSlideApp {
   private setupEventListeners(): void {
     // Single, Prominent Launch & Reset Controls (Canvas Playback Bar)
     const launchActions = () => {
+      this.mathKeyboard.close();
       if (this.physics.isSimulating) {
         this.physics.stopSimulation();
         this.updateSimulationStateUI(false);
@@ -718,6 +723,15 @@ class MarbleSlideApp {
 
     document.getElementById('btn-launch')?.addEventListener('click', launchActions);
     document.getElementById('btn-reset')?.addEventListener('click', resetActions);
+
+    // Toggle Math Keypad
+    document.getElementById('btn-toggle-math-keyboard')?.addEventListener('click', () => {
+      this.mathKeyboard.toggle();
+    });
+    document.getElementById('m-btn-toggle-math-keyboard')?.addEventListener('click', () => {
+      document.getElementById('mobile-menu-modal')?.classList.add('hidden');
+      this.mathKeyboard.toggle();
+    });
 
     // Simulation Speed Selector
     document.querySelectorAll('.speed-btn').forEach(btn => {
@@ -933,6 +947,7 @@ class MarbleSlideApp {
 
     // --- CANVAS POINTER INTERACTIONS (MOUSE & DRAG) ---
     this.canvas.addEventListener('mousedown', e => {
+      this.mathKeyboard.close();
       const rect = this.canvas.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
@@ -1040,6 +1055,7 @@ class MarbleSlideApp {
 
     // --- TOUCH INTERACTIONS (MOBILE / TRACKPAD TOUCH) ---
     this.canvas.addEventListener('touchstart', e => {
+      this.mathKeyboard.close();
       if (e.touches.length === 1) {
         const t = e.touches[0];
         const rect = this.canvas.getBoundingClientRect();

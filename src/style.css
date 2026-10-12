@@ -1993,3 +1993,354 @@ body.theme-doodle .save-indicator {
     overflow-y: auto;
   }
 }
+
+/* ==========================================================================
+   DESMOS-STYLE ON-SCREEN MATH KEYBOARD (MOBILE & TOUCH)
+   ========================================================================== */
+
+.eq-input-kbd-btn {
+  background: transparent;
+  border: none;
+  font-size: 0.95rem;
+  padding: 2px 4px;
+  cursor: pointer;
+  opacity: 0.65;
+  border-radius: 4px;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.eq-input-kbd-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.eq-input-kbd-btn:active {
+  transform: scale(0.9);
+}
+
+.math-keyboard-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 999;
+  background: var(--bg-secondary);
+  border-top: 1.5px solid var(--border-subtle);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 12px)) 10px;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.math-keyboard-container.hidden {
+  transform: translateY(105%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.math-keyboard-container.visible {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Push equations list & sidebar content up when keyboard is open */
+body.math-keyboard-open .sidebar {
+  padding-bottom: 280px;
+}
+
+body.math-keyboard-open .equations-list {
+  padding-bottom: 40px;
+}
+
+/* Keyboard Header Toolbar */
+.math-kbd-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 0 2px;
+}
+
+.kbd-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-input);
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+}
+
+.kbd-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.kbd-tab-btn.active {
+  background: var(--accent-cyan);
+  color: #0f172a;
+}
+
+.kbd-header-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.kbd-action-btn {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  border-radius: 7px;
+  padding: 4px 9px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.kbd-action-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--accent-cyan);
+}
+
+.kbd-action-btn .btn-subtext {
+  font-size: 0.65rem;
+  opacity: 0.8;
+}
+
+.close-kbd-btn {
+  font-size: 0.85rem;
+  padding: 4px 10px;
+}
+
+/* Keyboard Keys Grid */
+.math-kbd-grid {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.math-kbd-grid.tab-123 {
+  grid-template-columns: repeat(9, 1fr);
+}
+
+.math-kbd-grid.tab-func {
+  grid-template-columns: repeat(9, 1fr);
+}
+
+.math-kbd-grid.tab-bounds {
+  grid-template-columns: repeat(9, 1fr);
+}
+
+/* Key Buttons */
+.kbd-key {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  border-radius: 7px;
+  min-height: 40px;
+  height: 40px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.08s ease, background 0.12s ease, filter 0.08s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.kbd-key:active {
+  transform: scale(0.92);
+  filter: brightness(1.25);
+  background: var(--accent-cyan) !important;
+  color: #0f172a !important;
+}
+
+.kbd-key i {
+  font-family: 'KaTeX_Math', 'Times New Roman', serif;
+  font-style: italic;
+}
+
+/* Distinct Key Category Styling */
+.kbd-key.key-num {
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 700;
+  font-size: 1.02rem;
+}
+
+.kbd-key.key-var {
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent-cyan);
+  border-color: rgba(56, 189, 248, 0.35);
+  font-weight: 700;
+}
+
+.kbd-key.key-param {
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.3);
+}
+
+.kbd-key.key-op {
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
+  font-size: 1.08rem;
+}
+
+.kbd-key.key-math {
+  background: rgba(244, 63, 94, 0.1);
+  color: #f43f5e;
+}
+
+.kbd-key.key-func {
+  background: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+  font-size: 0.8rem;
+}
+
+.kbd-key.key-const {
+  background: rgba(236, 72, 153, 0.12);
+  color: #f472b6;
+  font-weight: 700;
+}
+
+.kbd-key.key-bracket {
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+  font-size: 1.02rem;
+}
+
+.kbd-key.key-del {
+  background: rgba(239, 68, 68, 0.16);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.35);
+  font-size: 1.08rem;
+}
+
+.kbd-key.key-enter {
+  background: var(--accent-cyan);
+  color: #0f172a;
+  font-weight: 800;
+  border-color: var(--accent-cyan);
+  font-size: 0.76rem;
+}
+
+.kbd-key.key-special {
+  background: rgba(255, 255, 255, 0.09);
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.kbd-key.key-nav {
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+  font-size: 0.86rem;
+}
+
+.kbd-key.key-rel {
+  background: rgba(255, 255, 255, 0.05);
+  color: #38bdf8;
+  font-size: 0.92rem;
+}
+
+.kbd-key.key-snippet {
+  grid-column: span 3;
+  font-size: 0.74rem;
+  background: rgba(56, 189, 248, 0.08);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.25);
+}
+
+/* DOODLE JUMP THEME VARIANT FOR MATH KEYBOARD */
+body.theme-doodle .math-keyboard-container {
+  background: #fbf7ee;
+  border-top: 2px solid #2d3748;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.15);
+}
+
+body.theme-doodle .kbd-tabs {
+  background: #ede6d4;
+  border-color: #cbd5e1;
+}
+
+body.theme-doodle .kbd-tab-btn {
+  color: #4b5563;
+}
+
+body.theme-doodle .kbd-tab-btn.active {
+  background: #72b338;
+  color: #ffffff;
+}
+
+body.theme-doodle .kbd-action-btn {
+  background: #ede6d4;
+  border-color: #2d3748;
+  color: #1f2937;
+}
+
+body.theme-doodle .kbd-key {
+  background: #ffffff;
+  border: 1.5px solid #2d3748;
+  color: #1f2937;
+  box-shadow: 0 2px 0 #2d3748;
+}
+
+body.theme-doodle .kbd-key:active {
+  background: #72b338 !important;
+  color: #ffffff !important;
+  box-shadow: none;
+}
+
+body.theme-doodle .kbd-key.key-num {
+  background: #f8fafc;
+}
+
+body.theme-doodle .kbd-key.key-var {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+body.theme-doodle .kbd-key.key-op {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+body.theme-doodle .kbd-key.key-enter {
+  background: #72b338;
+  color: #ffffff;
+  border-color: #2d3748;
+}
+
+body.theme-doodle .kbd-key.key-del {
+  background: #fee2e2;
+  color: #b91c1c;
+}

@@ -5,6 +5,7 @@ import { compileEquation, sampleEquation, ParsedEquation } from '../math/evaluat
 import { EquationItem } from '../levels/levelData';
 import { Segment } from '../physics/types';
 import { renderMathHtml } from '../math/latexRenderer';
+import { MathKeyboard } from './mathKeyboard';
 
 export const EQUATION_PALETTE = [
   '#38bdf8', // Sky Cyan
@@ -31,6 +32,7 @@ export class EquationManager {
   public compiled: Map<string, ParsedEquation> = new Map();
   public sliders: Map<string, SliderState> = new Map();
   public onEquationsChanged: () => void = () => {};
+  public mathKeyboard?: MathKeyboard;
 
   private containerEl: HTMLElement;
   private slidersEl: HTMLElement;
@@ -38,6 +40,19 @@ export class EquationManager {
   constructor(containerEl: HTMLElement, slidersEl: HTMLElement) {
     this.containerEl = containerEl;
     this.slidersEl = slidersEl;
+  }
+
+  public setMathKeyboard(kb: MathKeyboard): void {
+    this.mathKeyboard = kb;
+    this.mathKeyboard.onEnterPressed = () => {
+      this.addEquation('', undefined, true);
+    };
+    this.mathKeyboard.onInputChanged = (input) => {
+      const card = input.closest('.equation-card') as HTMLElement;
+      if (card && card.dataset.id) {
+        this.updateEquationRaw(card.dataset.id, input.value);
+      }
+    };
   }
 
   public setEquations(
@@ -85,8 +100,12 @@ export class EquationManager {
           card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           const input = card.querySelector('input') as HTMLInputElement;
           if (input) {
+            this.mathKeyboard?.setActiveInput(input);
             input.focus();
             input.select();
+            if (this.mathKeyboard && this.mathKeyboard.keyboardMode === 'custom') {
+              this.mathKeyboard.open();
+            }
           }
         }
       }, 50);
@@ -346,7 +365,14 @@ export class EquationManager {
       input.setAttribute('autocorrect', 'off');
       input.setAttribute('autocapitalize', 'off');
       input.setAttribute('spellcheck', 'false');
-      input.setAttribute('inputmode', 'text');
+
+      if (this.mathKeyboard) {
+        this.mathKeyboard.registerInput(input, () => {
+          this.updateEquationRaw(item.id, input.value);
+        });
+      } else {
+        input.setAttribute('inputmode', 'text');
+      }
 
       input.addEventListener('pointerdown', e => e.stopPropagation());
       input.addEventListener('mousedown', e => e.stopPropagation());
@@ -365,6 +391,33 @@ export class EquationManager {
         }
       });
       inputWrap.appendChild(input);
+
+      // Keyboard Toggle Button inside input wrap
+      const kbdBtn = document.createElement('button');
+      kbdBtn.type = 'button';
+      kbdBtn.className = 'eq-input-kbd-btn';
+      kbdBtn.title = 'Toggle Math Keypad vs Native Keyboard';
+      kbdBtn.innerHTML = (this.mathKeyboard && this.mathKeyboard.keyboardMode === 'custom') ? '⌨️' : '📱';
+
+      kbdBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!this.mathKeyboard) return;
+        this.mathKeyboard.setActiveInput(input);
+        if (this.mathKeyboard.isOpen) {
+          if (this.mathKeyboard.keyboardMode === 'custom') {
+            this.mathKeyboard.switchToNativeKeyboard();
+            kbdBtn.innerHTML = '📱';
+          } else {
+            this.mathKeyboard.switchToCustomKeyboard();
+            kbdBtn.innerHTML = '⌨️';
+          }
+        } else {
+          this.mathKeyboard.switchToCustomKeyboard();
+          kbdBtn.innerHTML = '⌨️';
+        }
+      });
+      inputWrap.appendChild(kbdBtn);
 
       inputWrap.addEventListener('pointerdown', () => {
         input.focus();
